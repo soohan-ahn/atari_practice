@@ -9,12 +9,7 @@ def transform_reward(reward):
     return np.sign(reward)
 
 def grayscale(img):
-    Avg =  np.mean(img, axis=2).astype(np.uint8)
-    grayImage = img
-    for i in range(3):
-       grayImage[:,:,i] = Avg
-    return grayImage
-
+    return np.mean(img, axis=2).astype(np.uint8)
 
 def downsize(img):
     return img[::2,::2]
@@ -23,7 +18,7 @@ def preprocess_image(img):
     return grayscale(downsize(img))
 
 def atari_model(n_actions, weight_backup):
-    ATARI_SHAPE = (105, 80, 3)
+    ATARI_SHAPE = (105, 80, 4)
 
     frames_input = keras.layers.Input(ATARI_SHAPE, name='frames')
     actions_input = keras.layers.Input((n_actions,), name='mask')
@@ -36,6 +31,10 @@ def atari_model(n_actions, weight_backup):
     hidden = keras.layers.Dense(256, activation='relu')(conv_flattened)
     output = keras.layers.Dense(n_actions)(hidden)
     filtered_output = keras.layers.merge([output, actions_input], mode='mul')
+
+    #print ("model state shape: ", frames_input.shape)
+    #print ("model action shape: ", actions_input.shape)
+
     model = keras.models.Model(input=[frames_input, actions_input], output= filtered_output)
     optimizer = keras.optimizers.RMSprop(lr=0.00025, rho=0.95, epsilon=0.01)
     model.compile(optimizer, loss='mse')
@@ -45,15 +44,15 @@ def atari_model(n_actions, weight_backup):
     return model
 
 #memory.append((state, action, reward,downsized_frame, is_done))
-#def sample_batch(memory, batch_size):
-#    indices = np.random.permutation(len(memory))[:batch_size]
-#    cols = [[], [], [], [], []]
-#    for idx in indices:
-#        new_memory = memory[idx]
-#        for col, value in zip(cols, new_memory):
-#            col.append(value)
-#    cols = [np.array(col) for col in cols]
-#    return (cols[0], cols[1], cols[2], cols[3], cols[4])
+def sample_batch(memory, batch_size):
+    indices = np.random.permutation(len(memory))[:batch_size]
+    cols = [[], [], [], [], []]
+    for idx in indices:
+        new_memory = memory[idx]
+        for col, value in zip(cols, new_memory):
+            col.append(value)
+    cols = [np.array(col) for col in cols]
+    return (cols[0], cols[1], cols[2], cols[3], cols[4])
 
 class Bricks:
     def __init__(self):
@@ -77,7 +76,7 @@ class Bricks:
 
     def get_epsilon_for_iteration(self):
         #return (1000000 - self.tot_index) / 1000000
-        epsilon = 0.5 + (-1 / 20000) * self.tot_index
+        epsilon = 1.0 + (-1 / 100000) * self.tot_index
         if epsilon < 0.1:
             return 0.1
         return epsilon
@@ -86,59 +85,69 @@ class Bricks:
         epsilon = self.get_epsilon_for_iteration()
         #epsilon = 0.01
         env = self.env
+        #print ("State shape: ", state.shape)
         if np.random.rand() < epsilon:
-        #if np.random.rand() < self.exploration_rate:
             return env.action_space.sample()
         else:
             return np.argmax(self.predict(state))
 
     def predict(self, state):
-        #preprocessed = preprocess_image(state)
-        #image = np.expand_dims(preprocessed, axis=0)
-        #image = np.expand_dims(state, axis=0)
-        image = state
-
+        state = np.expand_dims(state, axis = 0)
         action_mask = np.ones(self.env.action_space.n)
         action_mask = np.expand_dims(action_mask, axis=0)
 
-        return self.model.predict([image, action_mask])
+        return self.model.predict([state, action_mask])
 
     def replay(self):
         if len(self.memory) < self.sample_batch_size:
             return
-        sample_batch = random.sample(self.memory, self.sample_batch_size)
-        for state, action, reward, next_state, done in sample_batch:
+        samples = random.sample(self.memory, self.sample_batch_size)
+        #samples = sample_batch(self.memory, self.sample_batch_size)
+        #print ("samples: " , samples)
+        #i = 0
+        for state, action, reward, next_state, done in samples:
             target = reward
             if not done:
                 target = reward + self.gamma * np.max(self.predict(next_state)[0])
             target_f = self.predict(state)
             target_f[0][action] = target
 
-            current_image = state
+            #current_image = state
+            #current_image = np.expand_dims(state, axis=0)
+            state = np.expand_dims(state, axis = 0)
             action_mask = np.ones(self.env.action_space.n)
             action_mask = np.expand_dims(action_mask, axis=0)
 
-            self.model.fit([current_image, action_mask], target_f, epochs=1, verbose=0)
+            self.model.fit([state, action_mask], target_f, epochs=1, verbose=0)
+
+    def init_state(self, image):
+        return np.stack((image, image, image, image), axis=-1)
+    
+    def make_state(self, state, image):
+        return np.stack((state[:,:,1], state[:,:,2], state[:,:,3], image), axis=-1)
 
     def run(self):
         for index_episode in range (0, self.episodes):
-            #print("Iteration start: ", env.action_space.n)
-            state = self.env.reset()
+            #print("Iteration start: ", env.apreprocessed_imagepreprocessed_imagection_space.n)
+            image = self.env.reset()
+            preprocessed_image = preprocess_image(image)
+            state = self.init_state(preprocessed_image)
             done = False
             index = 0
             tot_reward = 0
             while not done:
-                preprocessed_state = preprocess_image(state)
-                preprocessed_state = np.expand_dims(preprocessed_state, axis=0)
-                action = self.act(preprocessed_state)
-                next_state, reward, done, _ = self.env.step(action)
+                preprocessed_image = preprocess_image(image)
+                action = self.act(state)
+                next_image, reward, done, _ = self.env.step(action)
+
+                preprocessed_next_image = preprocess_image(next_image)
+                next_state = self.make_state(state, preprocessed_next_image)
 
                 reward = transform_reward(reward)
-                preprocessed_next_state = preprocess_image(next_state)
-                preprocessed_next_state = np.expand_dims(preprocessed_next_state, axis=0)
-                self.env.render()
+                #self.env.render()
 
-                self.memory.append((preprocessed_state, action, reward, preprocessed_next_state, done))
+                self.memory.append((state, action, reward, next_state, done))
+                state = next_state
                 index += 1
                 tot_reward += reward
                 
@@ -148,7 +157,7 @@ class Bricks:
                 self.replay()
             if index_episode % 30000 == 0:
                 self.save_model()
-        self.save_model()
+        #self.save_model()
 
 if __name__ == "__main__":
     bricks = Bricks()
