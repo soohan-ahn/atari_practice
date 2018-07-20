@@ -166,7 +166,7 @@ class Bricks:
                 
             self.tot_index += 1
             print("Episode {}# Score: {}, Reward: {}, Total frames seen: {}, Epsilon: {}, memory_length: {}".format(index_episode, index + 1, tot_reward, self.tot_index, self.get_epsilon_for_iteration(),len(self.memory)))
-            if index_episode > 50000:
+            if len(self.memory) > 50000:
                 self.replay()
             if index_episode % 30000 == 0:
                 self.save_model()
