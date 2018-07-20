@@ -76,7 +76,10 @@ class Bricks:
 
     def get_epsilon_for_iteration(self):
         #return (1000000 - self.tot_index) / 1000000
-        epsilon = 1.0 + (-1 / 100000) * self.tot_index
+        if self.tot_index < 100000:
+            return 1
+
+        epsilon = 1.0 + (-1 / 100000) * (200000 - self.tot_index)
         if epsilon < 0.1:
             return 0.1
         return epsilon
