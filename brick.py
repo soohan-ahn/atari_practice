@@ -133,12 +133,22 @@ class Bricks:
             preprocessed_image = preprocess_image(image)
             state = self.init_state(preprocessed_image)
             done = False
+            dead = False
             index = 0
             tot_reward = 0
+            life = 0
             while not done:
                 preprocessed_image = preprocess_image(image)
-                action = self.act(state)
-                next_image, reward, done, _ = self.env.step(action)
+                if dead == True:
+                    Dead = False
+                    action = 1
+                else :
+                    action = self.act(state)
+                next_image, reward, done, info = self.env.step(action)
+
+                if info['ale.lives'] != life:
+                    dead = True
+                    life = info['ale.lives']
 
                 preprocessed_next_image = preprocess_image(next_image)
                 next_state = self.make_state(state, preprocessed_next_image)
