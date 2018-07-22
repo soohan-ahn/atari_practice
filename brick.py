@@ -108,6 +108,16 @@ class Bricks:
         #samples = sample_batch(self.memory, self.sample_batch_size)
         #print ("samples: " , samples)
         #i = 0
+
+        image = self.env.reset()
+        preprocessed_image = preprocess_image(image)
+        init_state = self.init_state(preprocessed_image)
+        second_image, init_reward, init_done, _ = self.env.step(1)
+        preprocessed_next_image = preprocess_image(second_image)
+        second_state = self.make_state(init_state, preprocessed_next_image)
+
+        init = (init_state, 1, init_reward, second_state, init_done)
+        samples = [init] + samples
         for state, action, reward, next_state, done in samples:
             target = reward
             if not done:
