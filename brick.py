@@ -153,7 +153,7 @@ class Bricks:
             while not done:
                 preprocessed_image = preprocess_image(image)
                 if dead == True:
-                    Dead = False
+                    dead = False
                     action = 1
                 else :
                     action = self.act(state)
