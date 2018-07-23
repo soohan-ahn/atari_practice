@@ -79,7 +79,7 @@ class Bricks:
         if self.tot_index < 100000:
             return 1
 
-        epsilon = 1.0 + (-1 / 100000) * (200000 - self.tot_index)
+        epsilon = 1.0 + (-1 / 100000) * (self.tot_index - 100000)
         if epsilon < 0.1:
             return 0.1
         return epsilon
